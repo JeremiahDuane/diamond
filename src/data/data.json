@@ -1,0 +1,84 @@
+{
+  "locations": [
+    {
+      "id": "property-001",
+      "propertyName": "Maple Grove Apartments",
+      "streetAddress": "125 Maple Grove Lane",
+      "zip": "60614",
+      "city": "Chicago",
+      "stateProvince": "IL"
+    },
+    {
+      "id": "property-002",
+      "propertyName": "Lakeside Commons",
+      "streetAddress": "480 Lakeside Terrace",
+      "zip": "53703",
+      "city": "Madison",
+      "stateProvince": "WI"
+    },
+    {
+      "id": "property-003",
+      "propertyName": "Cedar Park Residences",
+      "streetAddress": "730 Cedar Park Drive",
+      "zip": "78704",
+      "city": "Austin",
+      "stateProvince": "TX"
+    },
+    {
+      "id": "property-004",
+      "propertyName": "Harbor View Lofts",
+      "streetAddress": "215 Harbor View Way",
+      "zip": "02110",
+      "city": "Boston",
+      "stateProvince": "MA"
+    },
+    {
+      "id": "property-005",
+      "propertyName": "Pine Ridge Townhomes",
+      "streetAddress": "940 Pine Ridge Court",
+      "zip": "80203",
+      "city": "Denver",
+      "stateProvince": "CO"
+    },
+    {
+      "id": "property-006",
+      "propertyName": "Evergreen Place",
+      "streetAddress": "360 Evergreen Place",
+      "zip": "98103",
+      "city": "Seattle",
+      "stateProvince": "WA"
+    },
+    {
+      "id": "property-007",
+      "propertyName": "Willow Creek Estates",
+      "streetAddress": "625 Willow Creek Road",
+      "zip": "97205",
+      "city": "Portland",
+      "stateProvince": "OR"
+    },
+    {
+      "id": "property-008",
+      "propertyName": "Oak Terrace",
+      "streetAddress": "180 Oak Terrace Avenue",
+      "zip": "55401",
+      "city": "Minneapolis",
+      "stateProvince": "MN"
+    },
+    {
+      "id": "property-009",
+      "propertyName": "Birchwood Court",
+      "streetAddress": "245 Birchwood Crescent",
+      "zip": "M5V 2T6",
+      "city": "Toronto",
+      "stateProvince": "ON"
+    },
+    {
+      "id": "property-010",
+      "propertyName": "Pacific Gardens",
+      "streetAddress": "810 Pacific Gardens Boulevard",
+      "zip": "V6B 1A1",
+      "city": "Vancouver",
+      "stateProvince": "BC"
+    }
+  ]
+}
