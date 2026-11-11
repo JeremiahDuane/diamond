@@ -1,13 +1,53 @@
-import { useState } from 'react'
+import { cx } from '../utils/cx'
+import { useCallback, useState } from 'react'
 import type { Key, ReactNode } from 'react'
 import { Button } from './Button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './Table'
+import { compareValues, DEFAULT_SORT_DIRECTION, getNextSort } from '../utils/sort'
+import type { Sort } from '../utils/sort'
 
-type CellValue = string | number | boolean | null | undefined
+const SORT_ASCENDING_ICON = '↑'
+const SORT_DESCENDING_ICON = '↓'
+const SORT_UNSORTED_ICON = '↕'
+const DEFAULT_CELL_VALUE = '-'
+const DEFAULT_ALIGNMENT = 'left'
+const DEFAULT_ROW_LABEL = 'row'
+
+function sortRows<T>(
+  data: readonly T[],
+  field: keyof T,
+  direction = DEFAULT_SORT_DIRECTION,
+): T[] {
+  // Sort a copy so the caller’s row order stays unchanged.
+  return [...data].sort((a, b) => compareValues(a[field], b[field], direction))
+}
+
+type SortButtonProps = {
+  columnId: string
+  children: string
+  sort: Sort | null
+  onSort: (columnId: string) => void
+}
+
+function SortButton({ columnId, children, sort, onSort }: SortButtonProps) {
+  const active = sort?.columnId === columnId
+  const handleClick = useCallback(() => onSort(columnId), [onSort, columnId])
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="inline-flex items-center gap-2 rounded border-0 bg-transparent p-0 font-semibold text-inherit focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
+    >
+      {children}
+      <span aria-hidden="true">{active && sort ? sort.direction === 'asc' ? SORT_ASCENDING_ICON : SORT_DESCENDING_ICON : SORT_UNSORTED_ICON}</span>
+    </button>
+  )
+}
 
 export type DataTableColumn<T> = {
-  id: string
+  id: keyof T & string
   header: string
-  accessor: (row: T) => CellValue
   cell?: (row: T) => ReactNode
   sortable?: boolean
   align?: 'left' | 'center' | 'right'
@@ -17,140 +57,128 @@ export type DataTableProps<T> = {
   data: readonly T[]
   columns: readonly DataTableColumn<T>[]
   getRowKey: (row: T) => Key
-  caption: string
+  topRow?: ReactNode
   emptyMessage?: string
   className?: string
+  tableClassName?: string
   onAdd?: () => void
   onRemove?: (row: T) => void
   getRowLabel?: (row: T) => string
   addLabel?: string
 }
 
-type Sort = { columnId: string; direction: 'asc' | 'desc' }
-
-const alignment = {
-  left: 'text-left',
-  center: 'text-center',
-  right: 'text-right',
+type DataRowProps<T> = Pick<DataTableProps<T>, 'columns' | 'onRemove' | 'getRowLabel'> & {
+  hasActions: boolean
+  row: T
 }
 
-function compareValues(a: CellValue, b: CellValue, direction: Sort['direction']) {
-  // Keep missing values at the end in either direction.
-  if (a == null) return b == null ? 0 : 1
-  if (b == null) return -1
+function DataRow<T>({ row, columns, onRemove, getRowLabel, hasActions }: DataRowProps<T>) {
+  const handleRemove = useCallback(() => onRemove?.(row), [onRemove, row])
 
-  const comparison =
-    typeof a === 'number' && typeof b === 'number'
-      ? a - b
-      : String(a).localeCompare(String(b), undefined, { numeric: true })
-
-  return direction === 'asc' ? comparison : -comparison
+  return (
+    <TableRow className="hover:bg-muted/50">
+      {hasActions && (
+        <TableCell>
+          {onRemove && (
+          <Button variant="remove" size="sm" className="size-8 p-0" onClick={handleRemove}>
+            <span className="sr-only">Remove {getRowLabel?.(row) ?? DEFAULT_ROW_LABEL}</span>
+          </Button>
+          )}
+        </TableCell>
+      )}
+      {columns.map((column) => (
+        <TableCell key={column.id} style={{ textAlign: column.align ?? DEFAULT_ALIGNMENT }}>
+          {column.cell ? column.cell(row) : String(row[column.id] ?? DEFAULT_CELL_VALUE)}
+        </TableCell>
+      ))}
+    </TableRow>
+  )
 }
 
 export function DataTable<T>({
   data,
   columns,
   getRowKey,
-  caption,
+  topRow,
   emptyMessage = 'No results found.',
   className = '',
+  tableClassName,
   onAdd,
   onRemove,
   getRowLabel,
   addLabel = 'Add row',
 }: DataTableProps<T>) {
+  const hasActions = Boolean(onAdd || onRemove)
   const [sort, setSort] = useState<Sort | null>(null)
-  const sortedColumn = columns.find(
-    (column) => column.id === sort?.columnId && column.sortable,
+  const isSortedColumn = useCallback(
+    (column: DataTableColumn<T>) => column.id === sort?.columnId && column.sortable,
+    [sort?.columnId],
   )
+  // Ignore saved sorting if the column is removed or no longer sortable.
+  const sortedColumn = columns.find(isSortedColumn)
   const rows = sortedColumn && sort
-    ? [...data].sort((a, b) =>
-        compareValues(sortedColumn.accessor(a), sortedColumn.accessor(b), sort.direction),
-      )
+    ? sortRows(data, sortedColumn.id, sort.direction)
     : data
 
-  function toggleSort(columnId: string) {
-    setSort((current) => {
-      if (current?.columnId !== columnId) return { columnId, direction: 'asc' }
-      if (current.direction === 'asc') return { columnId, direction: 'desc' }
-      return null
-    })
-  }
+  const toggleSort = useCallback((columnId: string) => {
+    setSort((current) => getNextSort(current, columnId))
+  }, [])
 
-  const DEFAULT_VALUE = "-";
-  
+
   return (
-    <div className={`overflow-x-auto rounded-lg border border-gray-300 dark:border-gray-700 ${className}`}>
-      <table className="w-full border-collapse text-left text-sm text-gray-900 dark:text-gray-100">
-        <caption className="px-4 py-3 text-left font-semibold">
-          <div className="flex items-center gap-4">
-            {onAdd && (
-              <Button variant="add" size="sm" className="size-8 p-0" onClick={onAdd}>
-                <span className="sr-only">{addLabel}</span>
-              </Button>
-            )}
-            {caption}
-          </div>
-        </caption>
-        <thead className="bg-gray-100 dark:bg-gray-800">
-          <tr>
-            {onRemove && <th scope="col" className="w-16 px-4 py-3"><span className="sr-only">Actions</span></th>}
-            {columns.map((column) => {
-              const active = sortedColumn?.id === column.id
-
-              return (
-                <th
-                  key={column.id}
-                  scope="col"
-                  aria-sort={column.sortable
-                    && active && sort
-                      ? sort.direction === 'asc' ? 'ascending' : 'descending'
-                      : 'none'
-                    }
-                  className={`border-b border-gray-300 px-4 py-3 font-semibold dark:border-gray-700 ${alignment[column.align ?? 'left']}`}
-                >
-                  {column.sortable ? (
-                    <button
-                      type="button"
-                      onClick={() => toggleSort(column.id)}
-                      className="inline-flex items-center gap-2 rounded border-0 bg-transparent p-0 font-semibold text-inherit focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-500"
-                    >
-                      {column.header}
-                      <span aria-hidden="true">{active && sort ? sort.direction === 'asc' ? '↑' : '↓' : '↕'}</span>
-                    </button>
-                  ) : column.header}
-                </th>
-              )
-            })}
-          </tr>
-        </thead>
-        <tbody>
+    <div className={cx('overflow-x-auto', className)}>
+      <Table className={tableClassName}>
+        <TableHeader>
+          <TableRow>
+            {hasActions && <TableHead>Actions</TableHead>}
+            {columns.map((column) => (
+              <TableHead
+                key={column.id}
+                aria-sort={sortedColumn?.id === column.id && sort
+                  ? sort.direction === 'asc' ? 'ascending' : 'descending'
+                  : 'none'
+                }
+                style={{ textAlign: column.align ?? DEFAULT_ALIGNMENT }}
+              >
+                {column.sortable ? (
+                  <SortButton columnId={column.id} sort={sort} onSort={toggleSort}>
+                    {column.header}
+                  </SortButton>
+                ) : column.header}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {topRow}
+          {!topRow && onAdd && (
+            <TableRow>
+              <TableCell>
+                <Button variant="add" aria-pressed="false" size="sm" className="size-8 p-0" onClick={onAdd}>
+                  <span className="sr-only">{addLabel}</span>
+                </Button>
+              </TableCell>
+              {columns.map((column) => <TableCell key={column.id} />)}
+            </TableRow>
+          )}
           {rows.length === 0 ? (
-            <tr>
-              <td colSpan={Math.max(columns.length + (onRemove ? 1 : 0), 1)} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                {emptyMessage}
-              </td>
-            </tr>
+            <TableRow>
+              <TableCell colSpan={Math.max(columns.length + (hasActions ? 1 : 0), 1)} className="text-center text-muted-foreground">
+                <p className="py-4 whitespace-normal">{emptyMessage}</p>
+              </TableCell>
+            </TableRow>
           ) : rows.map((row) => (
-            <tr key={getRowKey(row)} className="border-b border-gray-200 last:border-b-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-              {onRemove && (
-                <td className="px-4 py-3">
-                  <Button variant="remove" size="sm" className="size-8 p-0"
-                    onClick={() => onRemove(row)}>
-                    <span className="sr-only">Remove {getRowLabel?.(row) ?? 'row'}</span>
-                  </Button>
-                </td>
-              )}
-              {columns.map((column) => (
-                <td key={column.id} className={`px-4 py-3 ${alignment[column.align ?? 'left']}`}>
-                  {column.cell ? column.cell(row) : String(column.accessor(row) ?? DEFAULT_VALUE)}
-                </td>
-              ))}
-
-            </tr>
+            <DataRow
+              key={getRowKey(row)}
+              row={row}
+              hasActions={hasActions}
+              columns={columns}
+              onRemove={onRemove}
+              getRowLabel={getRowLabel}
+            />
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   )
 }

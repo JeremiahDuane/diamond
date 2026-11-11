@@ -1,102 +1,86 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import { DataTable } from '../components/DataTable'
-import type { DataTableColumn } from '../components/DataTable'
-import data from '../data/data.json'
+import { columns, getLocations } from '../data/mockApi'
+import type { Property } from '../data/schema'
 import { PropertyForm } from '../components/PropertyForm'
-import type { Property } from '../components/PropertyForm'
-import { PageHeader } from '../components/page/header'
-
-type Location = Property
-
-const columns: DataTableColumn<Location>[] = [
-  {
-    id: 'propertyName',
-    header: 'Property name',
-    accessor: (location) => location.propertyName,
-    sortable: true,
-    cell: (location) => <span className="property-name">{location.propertyName}</span>,
-  },
-  { id: 'streetAddress', header: 'Street address', accessor: (location) => location.streetAddress, sortable: true },
-  { id: 'city', header: 'City', accessor: (location) => location.city, sortable: true },
-  { id: 'stateProvince', header: 'State / Province', accessor: (location) => location.stateProvince, sortable: true },
-  { id: 'zip', header: 'ZIP / Postal code', accessor: (location) => location.zip, sortable: true },
-]
+import { Page, PageHeader, PageSection } from '../components/Page'
+import { SearchField } from '../components/SearchField'
+import { SiteHeader } from '../components/SiteHeader'
 
 export function PropertiesView() {
-  const [properties, setProperties] = useState<Location[]>(() => [...data.locations])
+  const [properties, setProperties] = useState<Property[]>(getLocations)
   const [adding, setAdding] = useState(false)
   const [search, setSearch] = useState('')
+
+  // Search visible fields without requiring matching capitalization or outer spaces.
   const query = search.trim().toLocaleLowerCase()
-  const locations = properties.filter((location) =>
-    columns.some((column) => String(column.accessor(location)).toLocaleLowerCase().includes(query)),
-  )
+  
+  // Handle search and filtering (this should occur in the service layer, if we had a BE).
+  const matchesSearch = useCallback((location: Property) =>
+    columns.some((column) => String(location[column.id]).toLocaleLowerCase().includes(query)),
+  [query])
+  const filteredProperties = properties.filter(matchesSearch)
+  const handleSearchChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setSearch(event.target.value)
+  }, [])
+  const handleSubmit = useCallback((property: Property) => {
+    setProperties((current) => [...current, property])
+    // Clear the filter so the newly added property is visible.
+    setSearch('')
+    setAdding(false)
+  }, [])
+
+  const handleCancel = useCallback(() => setAdding(false), [])
+  const handleAdd = useCallback(() => setAdding(true), [])
+  const handleRemove = useCallback((location: Property) => {
+    setProperties((current) => current.filter((property) => property.id !== location.id))
+  }, [])
+  const getRowLabel = useCallback((location: Property) => location.propertyName, [])
+  const getRowKey = useCallback((location: Property) => location.id, [])
 
   return (
     <>
-      <header className="site-header">
-        <div className="header-content">
-          <a className="brand" href="/" aria-label="Diamond home">
-            <svg className="brand-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-              <path d="M9 5h14l6 9-13 14L3 14 9 5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-              <path d="M3 14h26M9 5l7 23 7-23" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-            </svg>
-            Diamond
-          </a>
-          <span className="header-label">Property directory</span>
-        </div>
-      </header>
+      <SiteHeader label="Property directory" />
+      <Page>
+        <PageHeader
+          title="Property locations"
+          eyebrow="YOUR PORTFOLIO, IN ONE PLACE"
+          description="Browse and find addresses across your property portfolio."
+        >
+          <span className="shrink-0 rounded-full border border-border bg-muted px-3 py-2 text-xs font-semibold text-foreground">
+            {properties.length} locations
+          </span>
+        </PageHeader>
 
-
-      <main className="home-page">
-        <PageHeader length={properties.length} ></PageHeader>
-
-        
-        <section className="directory" aria-label="Property directory">
-          <div className="table-toolbar">
-            <div>
-              <h2>All properties</h2>
-              <p role="status">Showing {locations.length} of {properties.length} locations</p>
-            </div>
-            <label className="search-field">
-              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="1.75" />
-                <path d="m16 16 4 4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-              </svg>
-              <span className="sr-only">Search property locations</span>
-              <input
-                type="search"
-                placeholder="Search properties or addresses…"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
-          </div>
-
-          {adding && (
-            <PropertyForm
-              onSubmit={(property) => {
-                setProperties((current) => [...current, property])
-                setSearch('')
-                setAdding(false)
-              }}
-              onCancel={() => setAdding(false)}
+        <PageSection
+          title="All properties"
+          aria-label="Property directory"
+          description={<p role="status">Showing {filteredProperties.length} of {properties.length} locations</p>}
+          actions={
+            <SearchField
+              label="Search property locations"
+              placeholder="Search properties or addresses…"
+              value={search}
+              onChange={handleSearchChange}
             />
-          )}
+          }
+          footer="Select a column heading to sort the directory."
+        >
           <DataTable
-            className="locations-table"
-            caption="Property locations and addresses"
-            data={locations}
+            tableClassName="min-w-4xl"
+            topRow={adding && <PropertyForm onSubmit={handleSubmit} onCancel={handleCancel} />}
+            data={filteredProperties}
             columns={columns}
             addLabel="Add property"
-            onAdd={() => setAdding(true)}
-            onRemove={(location) => setProperties((current) => current.filter((property) => property.id !== location.id))}
-            getRowLabel={(location) => location.propertyName}
-            getRowKey={(location) => location.id}
+            onAdd={handleAdd}
+            onRemove={handleRemove}
+            getRowLabel={getRowLabel}
+            getRowKey={getRowKey}
             emptyMessage="No properties match your search. Try a different name or address."
           />
-          <p className="table-hint">Select a column heading to sort the directory.</p>
-        </section>
-      </main>
+        </PageSection>
+      </Page>
     </>
   )
 }
