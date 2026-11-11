@@ -1,13 +1,11 @@
+import { useCallback, useId } from 'react'
+import type { SubmitEvent } from 'react'
+import { TableCell, TableRow } from './Table'
 import { Button } from './Button'
-
-export type Property = {
-  id: string
-  propertyName: string
-  streetAddress: string
-  city: string
-  stateProvince: string
-  zip: string
-}
+import { SaveIcon } from './icons/SaveIcon'
+import type { Property } from '../data/schema'
+import { PropertySchema } from '../data/schema'
+import { cx } from '../utils/cx'
 
 type PropertyFormProps = {
   onSubmit: (property: Property) => void
@@ -15,11 +13,13 @@ type PropertyFormProps = {
 }
 
 export function PropertyForm({ onSubmit, onCancel }: PropertyFormProps) {
-  return (
-    <form className="flex flex-wrap items-end gap-4 p-4" onSubmit={(event) => {
+  const formId = useId()
+  const handleSubmit = useCallback((event: SubmitEvent<HTMLFormElement>) => {
       event.preventDefault()
+      // Read and trim the submitted fields before creating a property.
       const fields = new FormData(event.currentTarget)
-      const property = {
+      const property: Property = {
+        // Usually this assignment of an ID would happen in the data layer.
         id: crypto.randomUUID(),
         propertyName: String(fields.get('propertyName')).trim(),
         streetAddress: String(fields.get('streetAddress')).trim(),
@@ -27,21 +27,38 @@ export function PropertyForm({ onSubmit, onCancel }: PropertyFormProps) {
         stateProvince: String(fields.get('stateProvince')).trim(),
         zip: String(fields.get('zip')).trim(),
       }
+      // Reject whitespace-only values even when native required validation passes.
       if (Object.values(property).some((value) => !value)) return
       onSubmit(property)
-    }}>
-      {([
-        ['propertyName', 'Property name'], ['streetAddress', 'Street address'],
-        ['city', 'City'], ['stateProvince', 'State / Province'], ['zip', 'ZIP / Postal code'],
-      ] as const).map(([name, label], index) => (
-        <label key={name} className="flex flex-col gap-1 text-sm">
-          {label}
-          <input name={name} required pattern={".*\\S.*"} autoFocus={index === 0}
-            className="rounded-md border border-gray-300 px-3 py-2 dark:border-gray-600" />
+  }, [onSubmit])
+
+  return (
+    <TableRow>
+      <TableCell>
+        {/* Associate inputs across cells with the form in the actions cell. */}
+        <form id={formId} onSubmit={handleSubmit} className="flex items-center gap-2">
+          <Button variant="add" active aria-pressed="true" size="sm" className="size-8 p-0" onClick={onCancel}>
+            <span className="sr-only">Cancel adding property</span>
+          </Button>
+          <Button variant="primary" size="sm" type="submit" className="size-8 p-0">
+            <SaveIcon />
+            <span className="sr-only">Save property</span>
+          </Button>
+        </form>
+      </TableCell>
+      {PropertySchema.map(([name, label], index) => (
+        <TableCell key={name}>
+        <label className="block text-sm">
+          <span className="sr-only">{label}</span>
+          <input form={formId} placeholder={label} name={name} required pattern={".*\\S.*"} autoFocus={index === 0}
+            className={cx(
+              'rounded-md border border-input bg-surface px-3 py-2 text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+              name === 'city' && 'w-40',
+              (name === 'stateProvince' || name === 'zip') && 'w-32',
+            )} />
         </label>
+        </TableCell>
       ))}
-      <Button variant="add" type="submit">Save property</Button>
-      <Button variant="secondary" onClick={onCancel}>Cancel</Button>
-    </form>
+    </TableRow>
   )
 }
